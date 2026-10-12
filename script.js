@@ -27,7 +27,6 @@ const logForm = document.getElementById('logForm');
 const logDate = document.getElementById('logDate');
 const logActivity = document.getElementById('logActivity');
 const logMetricType = document.getElementById('logMetricType');
-const metricFieldsWrap = document.getElementById('metricFields');
 const logsList = document.getElementById('logsList');
 const logsEmpty = document.getElementById('logsEmpty');
 const exportLogsBtn = document.getElementById('exportLogs');
@@ -35,6 +34,7 @@ const importLogsBtn = document.getElementById('importLogs');
 const importLogsFile = document.getElementById('importLogsFile');
 const clearLogsBtn = document.getElementById('clearLogs');
 const addQuickLogBtn = document.getElementById('addQuickLog');
+const metricFieldsWrap = document.getElementById('metricFields');
 
 const statsSummary = document.getElementById('statsSummary');
 const templateNameInput = document.getElementById('templateName');
@@ -391,6 +391,12 @@ function renderTemplates() {
       <span>${escapeHtml(temp.name)}</span>
       <small>${metricTypeLabels[temp.metricType] || temp.metricType}</small>
     `;
+    item.addEventListener('click', () => {
+      logActivity.value = temp.name;
+      logMetricType.value = temp.metricType;
+      showMetricFields(temp.metricType);
+      document.querySelector('.nav-item[data-tab="log"]').click();
+    });
     templateList.appendChild(item);
   });
 }
@@ -581,25 +587,6 @@ function weekInputToMonday(weekInput) {
 function addDays(date, offset) {
   const d = new Date(date); d.setDate(d.getDate() + offset); return d;
 }
-
-function getTemplatesForSuggestions() {
-  return templates;
-}
-
-// Simple template suggestion on activity input
-logActivity.addEventListener('focus', () => {
-  const suggestions = getTemplatesForSuggestions();
-});
-
-logActivity.addEventListener('input', () => {
-  const value = logActivity.value.trim().toLowerCase();
-  if (!value) return;
-  const found = templates.find(t => t.name.toLowerCase().includes(value));
-  if (found) {
-    logMetricType.value = found.metricType;
-    showMetricFields(found.metricType);
-  }
-});
 
 // backfill from old stored data for legacy users
 (function backfill() {
