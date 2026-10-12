@@ -284,8 +284,9 @@ function addPlanToDay(dayIndex) {
   const activity = prompt('请输入活动名称，如：哑铃卧推 / 跑步 / 深蹲');
   if (!activity || !activity.trim()) return;
 
-  const metricType = prompt('计量类型：duration / reps / sets_reps / distance / weight / custom\n默认：duration', 'duration');
-  const safeMetricType = ['duration', 'reps', 'sets_reps', 'distance', 'weight', 'custom'].includes(metricType || '') ? (metricType || 'duration') : 'duration';
+  const metricTypeInput = prompt('计量类型：时长 / 次数 / 组数×次数 / 距离 / 重量 / 自定义\n默认：时长', '时长');
+  const map = { '时长': 'duration', '次数': 'reps', '组数×次数': 'sets_reps', '距离': 'distance', '重量': 'weight', '自定义': 'custom' };
+  const safeMetricType = map[metricTypeInput] || 'duration';
 
   const parsed = buildMetricPayload(safeMetricType, true);
   const value = parsed.value;
@@ -605,4 +606,3 @@ logActivity.addEventListener('input', () => {
   logs = logs.map(normalizeLegacyLog);
   saveLogs();
 })();
-
