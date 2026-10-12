@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>我的健身记录</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>我的健身计划</h1>
+    <p>记录每次训练并跟踪进度</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>添加训练</h2>
+      <form id="planForm">
+        <label>
+          日期
+          <input type="date" id="date" required />
+        </label>
+        <label>
+          项目
+          <input type="text" id="activity" placeholder="例如：跑步/力量训练/瑜伽" required />
+        </label>
+        <label>
+          时长（分钟）
+          <input type="number" id="duration" min="1" placeholder="30" required />
+        </label>
+        <label>
+          备注
+          <input type="text" id="notes" placeholder="可选" />
+        </label>
+        <div class="actions">
+          <button type="submit">添加</button>
+          <button type="button" id="clearAll">清空全部</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>训练记录</h2>
+      <div id="plansList" class="list"></div>
+      <div id="empty" class="empty">还没有计划，快添加第一条！</div>
+    </section>
+  </main>
+
+  <footer>
+    <small>本地保存 · 可导出/导入（可扩展）</small>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
