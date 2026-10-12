@@ -4,14 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>健身计划与记录</title>
-  <meta name="theme-color" content="#0c1220" />
+  <meta name="theme-color" content="#f6efe6" />
+  <!-- 使用思源宋体/Serif 风格中文衬线，适合水墨风 -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <div class="ink-bg" aria-hidden="true"></div>
   <div class="app-shell">
     <header class="topbar">
       <div class="brand-wrap">
-        <div class="brand-badge">F</div>
+        <div class="brand-badge">印</div>
         <div>
           <div class="eyebrow">fitness planner</div>
           <h1>我的健身计划</h1>
@@ -137,7 +140,7 @@
 
         <div class="card list-card">
           <div class="card-head">
-            <h3>最近记���</h3>
+            <h3>最近记录</h3>
           </div>
           <div id="logsList" class="logs-list"></div>
           <div id="logsEmpty" class="empty">还没有训练记录，先把计划应用到记录里吧</div>
