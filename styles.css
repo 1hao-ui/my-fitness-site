@@ -314,6 +314,76 @@ button.danger {
   border: 1px solid var(--line);
 }
 
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.modal.hidden {
+  display: none;
+}
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 7, 18, 0.62);
+  backdrop-filter: blur(6px);
+}
+.modal-card {
+  position: relative;
+  width: min(92vw, 480px);
+  background: rgba(8, 15, 24, 0.98);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  padding: 18px;
+  animation: fadeUp 0.2s ease both;
+}
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.icon-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.04);
+  color: var(--text);
+  border: 1px solid var(--line);
+  padding: 0;
+}
+.item-form {
+  display: grid;
+  gap: 12px;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+.item-metric-fields {
+  display: grid;
+  gap: 10px;
+}
+.item-metric {
+  display: none;
+}
+.item-metric.active {
+  display: flex;
+}
+.item-metric.sets_reps {
+  display: none;
+  gap: 10px;
+}
+.item-metric.sets_reps.active {
+  display: flex;
+}
+
 @keyframes fadeUp {
   from {
     transform: translateY(10px);

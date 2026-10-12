@@ -189,6 +189,84 @@
     </main>
   </div>
 
+  <div id="itemModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-close="true"></div>
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>添加训练项</h3>
+        <button type="button" class="icon-close" data-close="true">×</button>
+      </div>
+
+      <form id="itemForm" class="item-form">
+        <input type="hidden" id="selectedDayIndex" />
+        <label>
+          <span>项目</span>
+          <input type="text" id="itemName" placeholder="例如：深蹲 / 跑步 / 哑铃卧推" required />
+        </label>
+
+        <label>
+          <span>计量类型</span>
+          <select id="itemMetricType">
+            <option value="duration">时长（分钟）</option>
+            <option value="reps">次数</option>
+            <option value="sets_reps">组数 × 次数</option>
+            <option value="distance">距离（公里）</option>
+            <option value="weight">重量（公斤）</option>
+            <option value="custom">自定义</option>
+          </select>
+        </label>
+
+        <div id="itemMetricFields" class="item-metric-fields">
+          <label class="item-metric duration active">
+            <span>分钟</span>
+            <input type="number" id="itemDuration" min="1" placeholder="30" />
+          </label>
+
+          <label class="item-metric reps">
+            <span>次数</span>
+            <input type="number" id="itemReps" min="1" placeholder="12" />
+          </label>
+
+          <div class="item-metric sets_reps">
+            <label>
+              <span>组数</span>
+              <input type="number" id="itemSets" min="1" placeholder="3" />
+            </label>
+            <label>
+              <span>每组次数</span>
+              <input type="number" id="itemRepsPerSet" min="1" placeholder="10" />
+            </label>
+          </div>
+
+          <label class="item-metric distance">
+            <span>公里</span>
+            <input type="number" id="itemDistance" min="0.1" step="0.1" placeholder="5" />
+          </label>
+
+          <label class="item-metric weight">
+            <span>公斤</span>
+            <input type="number" id="itemWeight" min="0.5" step="0.5" placeholder="20" />
+          </label>
+
+          <label class="item-metric custom">
+            <span>自定义内容</span>
+            <input type="text" id="itemCustom" placeholder="例如：1圈 + 2分钟恢复" />
+          </label>
+        </div>
+
+        <label>
+          <span>备注</span>
+          <input type="text" id="itemNotes" placeholder="可选：重点、恢复、状态" />
+        </label>
+
+        <div class="modal-actions">
+          <button type="button" class="ghost" data-close="true">取消</button>
+          <button type="submit" class="primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script src="script.js"></script>
 </body>
 </html>

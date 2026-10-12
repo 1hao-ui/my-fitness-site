@@ -42,6 +42,13 @@ const templateMetricType = document.getElementById('templateMetricType');
 const addTemplateBtn = document.getElementById('addTemplate');
 const templateList = document.getElementById('templateList');
 
+const itemModal = document.getElementById('itemModal');
+const itemForm = document.getElementById('itemForm');
+const itemName = document.getElementById('itemName');
+const itemMetricType = document.getElementById('itemMetricType');
+const itemNotes = document.getElementById('itemNotes');
+const selectedDayIndex = document.getElementById('selectedDayIndex');
+
 let weeklyPlans = loadStored(STORAGE_KEYS.weekly, {});
 let logs = loadStored(STORAGE_KEYS.logs, []);
 let templates = loadStored(STORAGE_KEYS.templates, [
@@ -65,6 +72,7 @@ function init() {
   bindTabs();
   bindMetricType();
   bindEvents();
+  bindItemModal();
 }
 
 function bindTabs() {
@@ -80,10 +88,11 @@ function bindTabs() {
 }
 
 function bindMetricType() {
-  logMetricType.addEventListener('change', () => {
-    showMetricFields(logMetricType.value);
-  });
+  logMetricType.addEventListener('change', () => showMetricFields(logMetricType.value));
   showMetricFields(logMetricType.value);
+
+  itemMetricType.addEventListener('change', () => showItemMetricFields(itemMetricType.value));
+  showItemMetricFields(itemMetricType.value);
 }
 
 function bindEvents() {
@@ -140,7 +149,7 @@ function bindEvents() {
       return;
     }
 
-    const payload = buildMetricPayload(metricType);
+    const payload = buildMetricPayload(metricType, null, 'log');
     if (!payload.valid) {
       alert('请补全对应计量信息');
       return;
@@ -211,6 +220,44 @@ function bindEvents() {
   weekPicker.addEventListener('change', renderWeek);
 }
 
+function bindItemModal() {
+  document.querySelectorAll('[data-close="true"]').forEach(el => {
+    el.addEventListener('click', closeItemModal);
+  });
+
+  itemForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const dayIndex = Number(selectedDayIndex.value);
+    const activeName = itemName.value.trim();
+    if (!activeName) {
+      alert('请输入项目名称');
+      return;
+    }
+    const metricType = itemMetricType.value;
+    const payload = buildMetricPayload(metricType, null, 'item');
+    if (!payload.valid) {
+      alert('请补全对应计量信息');
+      return;
+    }
+
+    const key = weekPicker.value;
+    const weekData = weeklyPlans[key] || { week: key, days: {} };
+    weekData.days[dayIndex] = weekData.days[dayIndex] || [];
+    weekData.days[dayIndex].push({
+      id: createId(),
+      activity: activeName,
+      metricType,
+      metricValue: payload.value,
+      notes: itemNotes.value.trim(),
+    });
+
+    weeklyPlans[key] = weekData;
+    saveWeekly();
+    closeItemModal();
+    renderWeek();
+  });
+}
+
 function saveCurrentWeek() {
   const key = weekPicker.value;
   weeklyPlans[key] = weeklyPlans[key] || { week: key, days: {} };
@@ -247,7 +294,7 @@ function renderWeek() {
         row.innerHTML = `
           <div>
             <strong>${escapeHtml(item.activity)}</strong>
-            <div class="meta">${formatMetric(item.metricType, item.metricValue)}</div>
+            <div class="meta">${formatMetric(item.metricType, item.metricValue)}${item.notes ? ' · ' + escapeHtml(item.notes) : ''}</div>
           </div>
           <button class="action-mini" data-day="${dayIndex}" data-id="${item.id}">删</button>
         `;
@@ -258,7 +305,7 @@ function renderWeek() {
     const addBtn = document.createElement('button');
     addBtn.className = 'ghost small';
     addBtn.textContent = '+ 添加';
-    addBtn.addEventListener('click', () => addPlanToDay(dayIndex));
+    addBtn.addEventListener('click', () => openItemModal(dayIndex));
     dayCard.appendChild(list);
     dayCard.appendChild(addBtn);
 
@@ -279,35 +326,33 @@ function renderWeek() {
   }
 }
 
-function addPlanToDay(dayIndex) {
-  const key = weekPicker.value;
-  const activity = prompt('请输入活动名称，如：哑铃卧推 / 跑步 / 深蹲');
-  if (!activity || !activity.trim()) return;
+function openItemModal(dayIndex) {
+  selectedDayIndex.value = String(dayIndex);
+  itemForm.reset();
+  itemMetricType.value = 'duration';
+  showItemMetricFields('duration');
+  itemModal.classList.remove('hidden');
+  itemModal.setAttribute('aria-hidden', 'false');
+}
 
-  const metricTypeInput = prompt('计量类型：时长 / 次数 / 组数×次数 / 距离 / 重量 / 自定义\n默认：时长', '时长');
-  const map = { '时长': 'duration', '次数': 'reps', '组数×次数': 'sets_reps', '距离': 'distance', '重量': 'weight', '自定义': 'custom' };
-  const safeMetricType = map[metricTypeInput] || 'duration';
+function closeItemModal() {
+  itemModal.classList.add('hidden');
+  itemModal.setAttribute('aria-hidden', 'true');
+  itemForm.reset();
+}
 
-  const parsed = buildMetricPayload(safeMetricType, true);
-  const value = parsed.value;
-  if (!parsed.valid) {
-    alert('请输入正确的计量值');
+function showItemMetricFields(type) {
+  const allRaw = document.querySelectorAll('.item-metric');
+  allRaw.forEach(el => el.classList.remove('active'));
+
+  const setReps = document.querySelector('.item-metric.sets_reps');
+  if (type === 'sets_reps') {
+    setReps.classList.add('active');
     return;
   }
 
-  const weekData = weeklyPlans[key] || { week: key, days: {} };
-  weekData.days[dayIndex] = weekData.days[dayIndex] || [];
-  weekData.days[dayIndex].push({
-    id: createId(),
-    activity: activity.trim(),
-    metricType: safeMetricType,
-    metricValue: value,
-    notes: ''
-  });
-
-  weeklyPlans[key] = weekData;
-  saveWeekly();
-  renderWeek();
+  const target = document.querySelector(`.item-metric.${type}`);
+  if (target) target.classList.add('active');
 }
 
 function applyWeekToLogs() {
@@ -420,24 +465,42 @@ function showMetricFields(type) {
   }
 }
 
-function buildMetricPayload(type, fromPrompt = false) {
+function buildMetricPayload(type, fromPrompt = null, source = 'log') {
+  const logDuration = Number(document.getElementById('logDuration').value || 0);
+  const logReps = Number(document.getElementById('logReps').value || 0);
+  const logSets = Number(document.getElementById('logSets').value || 0);
+  const logRepsPerSet = Number(document.getElementById('logRepsPerSet').value || 0);
+  const logDistance = Number(document.getElementById('logDistance').value || 0);
+  const logWeight = Number(document.getElementById('logWeight').value || 0);
+  const logCustom = document.getElementById('logCustomMetric').value || '';
+
+  const itemDuration = Number(document.getElementById('itemDuration').value || 0);
+  const itemReps = Number(document.getElementById('itemReps').value || 0);
+  const itemSets = Number(document.getElementById('itemSets').value || 0);
+  const itemRepsPerSet = Number(document.getElementById('itemRepsPerSet').value || 0);
+  const itemDistance = Number(document.getElementById('itemDistance').value || 0);
+  const itemWeight = Number(document.getElementById('itemWeight').value || 0);
+  const itemCustom = document.getElementById('itemCustom').value || '';
+
   const valueMap = {
-    duration: Number(document.getElementById('logDuration').value || (fromPrompt ? prompt('分钟', '30') : 0)),
-    reps: Number(document.getElementById('logReps').value || (fromPrompt ? prompt('次数', '12') : 0)),
+    duration: source === 'item' ? itemDuration : logDuration,
+    reps: source === 'item' ? itemReps : logReps,
     sets_reps: {
-      sets: Number(document.getElementById('logSets').value || (fromPrompt ? prompt('组数', '3') : 0)),
-      reps: Number(document.getElementById('logRepsPerSet').value || (fromPrompt ? prompt('每组次数', '10') : 0))
+      sets: source === 'item' ? itemSets : logSets,
+      reps: source === 'item' ? itemRepsPerSet : logRepsPerSet,
     },
-    distance: Number(document.getElementById('logDistance').value || (fromPrompt ? prompt('公里', '5') : 0)),
-    weight: Number(document.getElementById('logWeight').value || (fromPrompt ? prompt('公斤', '20') : 0)),
-    custom: document.getElementById('logCustomMetric').value || (fromPrompt ? prompt('自定义内容', '') : '')
+    distance: source === 'item' ? itemDistance : logDistance,
+    weight: source === 'item' ? itemWeight : logWeight,
+    custom: source === 'item' ? itemCustom : logCustom,
   };
 
   const val = valueMap[type];
+
   if (type === 'sets_reps') {
     const valid = Number.isFinite(val.sets) && Number.isFinite(val.reps) && val.sets > 0 && val.reps > 0;
     return { valid, value: valid ? val : null };
   }
+
   if (type === 'custom') {
     const valid = typeof val === 'string' && val.trim().length > 0;
     return { valid, value: valid ? val.trim() : null };
@@ -588,7 +651,6 @@ function addDays(date, offset) {
   const d = new Date(date); d.setDate(d.getDate() + offset); return d;
 }
 
-// backfill from old stored data for legacy users
 (function backfill() {
   logs = logs.map(normalizeLegacyLog);
   saveLogs();
