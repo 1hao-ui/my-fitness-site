@@ -3,67 +3,186 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>我的健身计划</title>
+  <title>健身计划与记录</title>
+  <meta name="theme-color" content="#0c1220" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="site-header">
-    <div class="container">
-      <h1>🏃 我的健身计划</h1>
-      <p class="muted">可视化每周计划 · 一键应用到训练记录 · 本地保存（可导出）</p>
-    </div>
-  </header>
-
-  <main class="container layout">
-    <aside class="panel">
-      <h2>每周训练计划</h2>
-      <label class="row">
-        <span>选择周</span>
-        <input type="week" id="weekPicker" />
-      </label>
-      <div id="weekControls" class="row">
-        <button id="saveWeek">保存本周计划</button>
-        <button id="applyWeek">应用到训练记录</button>
-        <button id="clearWeek" class="danger">清空本周</button>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-wrap">
+        <div class="brand-badge">F</div>
+        <div>
+          <div class="eyebrow">fitness planner</div>
+          <h1>我的健身计划</h1>
+        </div>
       </div>
+      <button id="addQuickLog" class="primary small">+ 记录</button>
+    </header>
 
-      <div id="weekDays" class="week-days"></div>
+    <main class="main-layout">
+      <nav class="bottom-nav" aria-label="导航">
+        <button class="nav-item active" data-tab="plan"><span>计划</span></button>
+        <button class="nav-item" data-tab="log"><span>记录</span></button>
+        <button class="nav-item" data-tab="stats"><span>统计</span></button>
+        <button class="nav-item" data-tab="settings"><span>设置</span></button>
+      </nav>
 
-      <div class="row small">
-        <button id="exportWeek">导出计划（JSON）</button>
-        <input type="file" id="importWeekFile" style="display:none" />
-        <button id="importWeek">导入计划</button>
-      </div>
-    </aside>
+      <section class="tab-panel active" id="panel-plan">
+        <div class="card">
+          <div class="card-head">
+            <h2>每周计划</h2>
+            <button id="saveWeek" class="primary small">保存</button>
+          </div>
 
-    <section class="panel">
-      <h2>训练记录</h2>
+          <div class="field-group split">
+            <label>
+              <span>周次</span>
+              <input type="week" id="weekPicker" />
+            </label>
+            <button id="applyWeek" class="secondary small">应用到记录</button>
+          </div>
 
-      <form id="logForm" class="inline-form">
-        <input type="date" id="logDate" required />
-        <input type="text" id="logActivity" placeholder="项目，例如：跑步/力量/瑜伽" required />
-        <input type="number" id="logDuration" min="1" placeholder="分钟" required />
-        <input type="text" id="logNotes" placeholder="备注（可选）" />
-        <button type="submit">添加记录</button>
-      </form>
+          <div id="weekDays" class="week-grid"></div>
+          <div class="toolbar">
+            <button id="clearWeek" class="ghost small danger">清空本周</button>
+            <button id="exportWeek" class="ghost small">导出</button>
+            <button id="importWeek" class="ghost small">导入</button>
+            <input type="file" id="importWeekFile" hidden />
+          </div>
+        </div>
+      </section>
 
-      <div class="row small">
-        <button id="exportLogs">导出记录（JSON）</button>
-        <input type="file" id="importLogsFile" style="display:none" />
-        <button id="importLogs">导入记录</button>
-        <button id="clearLogs" class="danger">清空所有记录</button>
-      </div>
+      <section class="tab-panel" id="panel-log">
+        <div class="card">
+          <div class="card-head">
+            <h2>训练记录</h2>
+            <button id="clearLogs" class="ghost small danger">清空</button>
+          </div>
 
-      <div id="logsList" class="logs-list"></div>
-      <div id="logsEmpty" class="empty">还没有训练记录，试试把计划“应用到训练记录”</div>
-    </section>
-  </main>
+          <form id="logForm" class="log-form">
+            <label>
+              <span>日期</span>
+              <input type="date" id="logDate" required />
+            </label>
+            <label>
+              <span>项目</span>
+              <input type="text" id="logActivity" placeholder="例如：跑步 / 哑铃卧推" required />
+            </label>
 
-  <footer class="site-footer">
-    <div class="container">
-      <small>本地保存 · 无账户 · 可导出 JSON 备份</small>
-    </div>
-  </footer>
+            <label>
+              <span>计量</span>
+              <select id="logMetricType">
+                <option value="duration">时长（分钟）</option>
+                <option value="reps">次数</option>
+                <option value="sets_reps">组数 × 次数</option>
+                <option value="distance">距离（公里）</option>
+                <option value="weight">重量（公斤）</option>
+                <option value="custom">自定义</option>
+              </select>
+            </label>
+
+            <div id="metricFields" class="metric-fields">
+              <label class="metric-field duration">
+                <span>分钟</span>
+                <input type="number" id="logDuration" min="1" placeholder="30" />
+              </label>
+
+              <label class="metric-field reps">
+                <span>次数</span>
+                <input type="number" id="logReps" min="1" placeholder="12" />
+              </label>
+
+              <div class="metric-field sets_reps">
+                <label>
+                  <span>组数</span>
+                  <input type="number" id="logSets" min="1" placeholder="3" />
+                </label>
+                <label>
+                  <span>每组次数</span>
+                  <input type="number" id="logRepsPerSet" min="1" placeholder="10" />
+                </label>
+              </div>
+
+              <label class="metric-field distance">
+                <span>公里</span>
+                <input type="number" id="logDistance" min="0.1" step="0.1" placeholder="5" />
+              </label>
+
+              <label class="metric-field weight">
+                <span>公斤</span>
+                <input type="number" id="logWeight" min="0.5" step="0.5" placeholder="20" />
+              </label>
+
+              <label class="metric-field custom">
+                <span>自定义内容</span>
+                <input type="text" id="logCustomMetric" placeholder="例如：1圈 + 2分钟恢复" />
+              </label>
+            </div>
+
+            <label>
+              <span>备注</span>
+              <input type="text" id="logNotes" placeholder="可选，如：感觉良好、拉伸" />
+            </label>
+
+            <button type="submit" class="primary wide">添加记录</button>
+          </form>
+
+          <div class="toolbar">
+            <button id="exportLogs" class="ghost small">导出</button>
+            <button id="importLogs" class="ghost small">导入</button>
+            <input type="file" id="importLogsFile" hidden />
+          </div>
+        </div>
+
+        <div class="card list-card">
+          <div class="card-head">
+            <h3>最近记���</h3>
+          </div>
+          <div id="logsList" class="logs-list"></div>
+          <div id="logsEmpty" class="empty">还没有训练记录，先把计划应用到记录里吧</div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="panel-stats">
+        <div class="card">
+          <div class="card-head">
+            <h2>本周概览</h2>
+          </div>
+          <div id="statsSummary" class="stats-grid"></div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="panel-settings">
+        <div class="card">
+          <div class="card-head">
+            <h2>设置</h2>
+          </div>
+
+          <div class="setting-block">
+            <label>
+              <span>活动模板</span>
+              <input type="text" id="templateName" placeholder="例如：深蹲" />
+            </label>
+            <label>
+              <span>默认计量类型</span>
+              <select id="templateMetricType">
+                <option value="duration">时长（分钟）</option>
+                <option value="reps">次数</option>
+                <option value="sets_reps">组数 × 次数</option>
+                <option value="distance">距离（公里）</option>
+                <option value="weight">重量（公斤）</option>
+                <option value="custom">自定义</option>
+              </select>
+            </label>
+            <button id="addTemplate" class="primary small">保存模板</button>
+          </div>
+
+          <div class="template-list" id="templateList"></div>
+        </div>
+      </section>
+    </main>
+  </div>
 
   <script src="script.js"></script>
 </body>

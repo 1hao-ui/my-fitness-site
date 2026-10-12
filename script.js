@@ -1,6 +1,18 @@
-/* 更强的本地化周计划 + 训练记录逻辑 */
-const LOG_KEY = 'my_fitness_logs_v2';
-const WEEK_KEY = 'my_fitness_weekly_v1';
+const STORAGE_KEYS = {
+  logs: 'fitness_logs_v3',
+  weekly: 'fitness_weekly_v2',
+  templates: 'fitness_templates_v1'
+};
+
+const DAY_LABELS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+const metricTypeLabels = {
+  duration: '时长（分钟）',
+  reps: '次数',
+  sets_reps: '组数 × 次数',
+  distance: '距离（公里）',
+  weight: '重量（公斤）',
+  custom: '自定义'
+};
 
 const weekPicker = document.getElementById('weekPicker');
 const weekDaysEl = document.getElementById('weekDays');
@@ -14,239 +26,583 @@ const importWeekFile = document.getElementById('importWeekFile');
 const logForm = document.getElementById('logForm');
 const logDate = document.getElementById('logDate');
 const logActivity = document.getElementById('logActivity');
-const logDuration = document.getElementById('logDuration');
-const logNotes = document.getElementById('logNotes');
+const logMetricType = document.getElementById('logMetricType');
+const metricFieldsWrap = document.getElementById('metricFields');
 const logsList = document.getElementById('logsList');
 const logsEmpty = document.getElementById('logsEmpty');
 const exportLogsBtn = document.getElementById('exportLogs');
 const importLogsBtn = document.getElementById('importLogs');
 const importLogsFile = document.getElementById('importLogsFile');
 const clearLogsBtn = document.getElementById('clearLogs');
+const addQuickLogBtn = document.getElementById('addQuickLog');
 
-const DAY_LABELS = ['周一','周二','周三','周四','周五','周六','周日'];
+const statsSummary = document.getElementById('statsSummary');
+const templateNameInput = document.getElementById('templateName');
+const templateMetricType = document.getElementById('templateMetricType');
+const addTemplateBtn = document.getElementById('addTemplate');
+const templateList = document.getElementById('templateList');
 
-let weeklyPlans = loadWeekly();
-let logs = loadLogs();
+let weeklyPlans = loadStored(STORAGE_KEYS.weekly, {});
+let logs = loadStored(STORAGE_KEYS.logs, []);
+let templates = loadStored(STORAGE_KEYS.templates, [
+  { id: 'run', name: '跑步', metricType: 'distance' },
+  { id: 'bench', name: '卧推', metricType: 'sets_reps' },
+  { id: 'squat', name: '深蹲', metricType: 'sets_reps' },
+  { id: 'cycling', name: '骑行', metricType: 'duration' },
+  { id: 'pushup', name: '俯卧撑', metricType: 'reps' }
+]);
 
-// 初始化 week 输入为当前周
-(function initWeekPicker(){
+init();
+
+function init() {
   const today = new Date();
-  const w = dateToWeekInput(today);
-  weekPicker.value = w;
+  weekPicker.value = dateToWeekInput(today);
+  logDate.value = toISODate(today);
   renderWeek();
   renderLogs();
-})();
+  renderStats();
+  renderTemplates();
+  bindTabs();
+  bindMetricType();
+  bindEvents();
+}
 
-// 事件绑定
-saveWeekBtn.addEventListener('click', ()=>{
-  saveCurrentWeekFromUI();
-  alert('已保存本周计划');
-});
-
-applyWeekBtn.addEventListener('click', ()=>{
-  const cnt = applyWeekToLogs();
-  saveLogs();
-  renderLogs();
-  alert('已将计划应用为 ' + cnt + ' 条训练记录');
-});
-
-clearWeekBtn.addEventListener('click', ()=>{
-  if (!confirm('清空本周计划？')) return;
-  const key = weekPicker.value;
-  delete weeklyPlans[key];
-  saveWeekly();
-  renderWeek();
-});
-
-exportWeekBtn.addEventListener('click', ()=>{
-  const key = weekPicker.value;
-  const data = weeklyPlans[key] || {week:key, days:{}};
-  downloadJSON(data, `weekly-plan-${key}.json`);
-});
-
-importWeekBtn.addEventListener('click', ()=> importWeekFile.click());
-importWeekFile.addEventListener('change', async (e)=>{
-  const f = e.target.files[0];
-  if (!f) return;
-  const txt = await f.text();
-  try{
-    const obj = JSON.parse(txt);
-    if (!obj.week) obj.week = weekPicker.value;
-    weeklyPlans[obj.week] = obj;
-    saveWeekly();
-    weekPicker.value = obj.week;
-    renderWeek();
-    alert('导入成功');
-  }catch(err){ alert('导入失败：文件不是合法 JSON'); }
-});
-
-logForm.addEventListener('submit', (e)=>{
-  e.preventDefault();
-  const entry = {
-    id: Date.now().toString(),
-    date: logDate.value,
-    activity: logActivity.value.trim(),
-    duration: Number(logDuration.value),
-    notes: logNotes.value.trim()
-  };
-  logs.push(entry);
-  saveLogs();
-  logForm.reset();
-  renderLogs();
-});
-
-exportLogsBtn.addEventListener('click', ()=> downloadJSON(logs, 'fitness-logs.json'));
-importLogsBtn.addEventListener('click', ()=> importLogsFile.click());
-importLogsFile.addEventListener('change', async (e)=>{
-  const f = e.target.files[0]; if (!f) return;
-  const txt = await f.text();
-  try{
-    const arr = JSON.parse(txt);
-    if (!Array.isArray(arr)) throw new Error('not array');
-    logs = logs.concat(arr.map(a=>({ ...a, id: a.id || Date.now().toString() + Math.random() }))); 
-    saveLogs(); renderLogs(); alert('导入成功');
-  }catch(err){ alert('导入失败：请上传导出的 JSON 数组文件'); }
-});
-
-clearLogsBtn.addEventListener('click', ()=>{
-  if (!confirm('清空所有训练记录？此操作不可撤销')) return;
-  logs = [];
-  saveLogs();
-  renderLogs();
-});
-
-weekPicker.addEventListener('change', renderWeek);
-
-// 渲染周计划 UI
-function renderWeek(){
-  const key = weekPicker.value;
-  const plan = weeklyPlans[key] ? (weeklyPlans[key].days || {}) : {};
-  weekDaysEl.innerHTML = '';
-  for (let i=0;i<7;i++){
-    const d = document.createElement('div'); d.className='day';
-    const dowLabel = DAY_LABELS[i];
-    d.innerHTML = `<h3>${dowLabel}</h3>`;
-    const list = document.createElement('div'); list.className='plan-list';
-    const items = plan[i] || [];
-    for (const it of items){
-      const item = document.createElement('div'); item.className='plan-item';
-      item.innerHTML = `<div class="meta"><div class="title">${escapeHtml(it.activity)}</div><div class="small">${it.duration} 分钟 ${it.notes? '· '+escapeHtml(it.notes): ''}</div></div><div><button class=btn-ghost data-day="${i}" data-id="${it.id}" data-act="del">删除</button></div>`;
-      list.appendChild(item);
-    }
-    // add button
-    const addBtn = document.createElement('button'); addBtn.className='btn-ghost'; addBtn.textContent='添加计划';
-    addBtn.addEventListener('click', ()=> openAddPlanDialog(i));
-    d.appendChild(list);
-    d.appendChild(addBtn);
-    weekDaysEl.appendChild(d);
-  }
-  // delegate delete
-  weekDaysEl.querySelectorAll('button[data-act="del"]').forEach(b=>{
-    b.addEventListener('click', ()=>{
-      const day = b.getAttribute('data-day');
-      const id = b.getAttribute('data-id');
-      const key = weekPicker.value; const p = weeklyPlans[key] || {week:key, days:{}};
-      p.days[day] = (p.days[day]||[]).filter(x=>x.id !== id);
-      weeklyPlans[key] = p; saveWeekly(); renderWeek();
+function bindTabs() {
+  document.querySelectorAll('.nav-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      const tab = btn.dataset.tab;
+      document.getElementById('panel-' + tab).classList.add('active');
     });
   });
 }
 
-function openAddPlanDialog(day){
-  const activity = prompt('项目（例如：跑步/力量/瑜伽）');
-  if (!activity) return;
-  const duration = prompt('时长（分钟）', '30');
-  if (!duration) return;
-  const notes = prompt('备注（可选）', '');
-  const key = weekPicker.value;
-  const p = weeklyPlans[key] || {week:key, days:{}};
-  p.days[day] = p.days[day] || [];
-  p.days[day].push({ id: Date.now().toString() + Math.random(), activity: activity.trim(), duration: Number(duration), notes: (notes||'').trim() });
-  weeklyPlans[key] = p; saveWeekly(); renderWeek();
+function bindMetricType() {
+  logMetricType.addEventListener('change', () => {
+    showMetricFields(logMetricType.value);
+  });
+  showMetricFields(logMetricType.value);
 }
 
-function saveCurrentWeekFromUI(){
-  // UI changes already persisted on add/delete; ensure structure exists
+function bindEvents() {
+  saveWeekBtn.addEventListener('click', () => {
+    saveCurrentWeek();
+    alert('已保存本周计划');
+  });
+
+  applyWeekBtn.addEventListener('click', () => {
+    const count = applyWeekToLogs();
+    saveLogs();
+    renderLogs();
+    renderStats();
+    alert('已将本周计划应用为 ' + count + ' 条记录');
+  });
+
+  clearWeekBtn.addEventListener('click', () => {
+    if (!confirm('确认清空当前周计划？')) return;
+    const key = weekPicker.value;
+    delete weeklyPlans[key];
+    saveWeekly();
+    renderWeek();
+  });
+
+  exportWeekBtn.addEventListener('click', () => {
+    const key = weekPicker.value;
+    const payload = weeklyPlans[key] || { week: key, days: {} };
+    downloadJSON(payload, `weekly-plan-${key}.json`);
+  });
+
+  importWeekBtn.addEventListener('click', () => importWeekFile.click());
+  importWeekFile.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const key = data.week || weekPicker.value;
+      weeklyPlans[key] = { week: key, days: data.days || {} };
+      saveWeekly();
+      weekPicker.value = key;
+      renderWeek();
+      alert('导入成功');
+    } catch {
+      alert('导入失败：请上传正确的 JSON 计划文件');
+    }
+  });
+
+  logForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const metricType = logMetricType.value;
+    if (!logActivity.value.trim()) {
+      alert('请输入项目名称');
+      return;
+    }
+
+    const payload = buildMetricPayload(metricType);
+    if (!payload.valid) {
+      alert('请补全对应计量信息');
+      return;
+    }
+
+    logs.push({
+      id: createId(),
+      date: logDate.value,
+      activity: logActivity.value.trim(),
+      metricType,
+      metricValue: payload.value,
+      notes: document.getElementById('logNotes').value.trim()
+    });
+
+    saveLogs();
+    renderLogs();
+    renderStats();
+    logForm.reset();
+    logDate.value = toISODate(new Date());
+    logMetricType.value = 'duration';
+    showMetricFields('duration');
+  });
+
+  exportLogsBtn.addEventListener('click', () => downloadJSON(logs, 'fitness-logs.json'));
+  importLogsBtn.addEventListener('click', () => importLogsFile.click());
+  importLogsFile.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) throw new Error();
+      logs = parsed.map(normalizeLegacyLog);
+      saveLogs();
+      renderLogs();
+      renderStats();
+      alert('导入成功');
+    } catch {
+      alert('导入失败：请上传导出的训练记录 JSON');
+    }
+  });
+
+  clearLogsBtn.addEventListener('click', () => {
+    if (!confirm('确定清空全部记录？')) return;
+    logs = [];
+    saveLogs();
+    renderLogs();
+    renderStats();
+  });
+
+  addQuickLogBtn.addEventListener('click', () => {
+    document.querySelector('.nav-item[data-tab="log"]').click();
+    logActivity.focus();
+  });
+
+  addTemplateBtn.addEventListener('click', () => {
+    const name = templateNameInput.value.trim();
+    if (!name) {
+      alert('请填写模板名称');
+      return;
+    }
+    templates.push({ id: createId(), name, metricType: templateMetricType.value });
+    saveTemplates();
+    renderTemplates();
+    templateNameInput.value = '';
+  });
+
+  weekPicker.addEventListener('change', renderWeek);
+}
+
+function saveCurrentWeek() {
   const key = weekPicker.value;
-  weeklyPlans[key] = weeklyPlans[key] || {week:key, days:{}};
+  weeklyPlans[key] = weeklyPlans[key] || { week: key, days: {} };
   saveWeekly();
 }
 
-// 将周计划应用为训练记录（生成具体日期）
-function applyWeekToLogs(){
+function renderWeek() {
   const key = weekPicker.value;
-  const p = weeklyPlans[key];
-  if (!p || !p.days) return 0;
+  const source = weeklyPlans[key] || { week: key, days: {} };
+  weekDaysEl.innerHTML = '';
+
+  for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+    const items = source.days[dayIndex] || [];
+    const dayCard = document.createElement('div');
+    dayCard.className = 'day-card';
+
+    const title = document.createElement('h3');
+    title.textContent = DAY_LABELS[dayIndex];
+    dayCard.appendChild(title);
+
+    const list = document.createElement('div');
+    list.className = 'plan-list';
+
+    if (items.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'meta';
+      empty.textContent = '暂无计划';
+      empty.style.color = '#94a3b8';
+      list.appendChild(empty);
+    } else {
+      items.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'plan-pill';
+        row.innerHTML = `
+          <div>
+            <strong>${escapeHtml(item.activity)}</strong>
+            <div class="meta">${formatMetric(item.metricType, item.metricValue)}</div>
+          </div>
+          <button class="action-mini" data-day="${dayIndex}" data-id="${item.id}">删</button>
+        `;
+        list.appendChild(row);
+      });
+    }
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'ghost small';
+    addBtn.textContent = '+ 添加';
+    addBtn.addEventListener('click', () => addPlanToDay(dayIndex));
+    dayCard.appendChild(list);
+    dayCard.appendChild(addBtn);
+
+    const deleteButtons = dayCard.querySelectorAll('.action-mini');
+    deleteButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetDay = Number(btn.dataset.day);
+        const targetId = btn.dataset.id;
+        const weekData = weeklyPlans[key] || { week: key, days: {} };
+        weekData.days[targetDay] = (weekData.days[targetDay] || []).filter(x => x.id !== targetId);
+        weeklyPlans[key] = weekData;
+        saveWeekly();
+        renderWeek();
+      });
+    });
+
+    weekDaysEl.appendChild(dayCard);
+  }
+}
+
+function addPlanToDay(dayIndex) {
+  const key = weekPicker.value;
+  const activity = prompt('请输入活动名称，如：哑铃卧推 / 跑步 / 深蹲');
+  if (!activity || !activity.trim()) return;
+
+  const metricType = prompt('计量类型：duration / reps / sets_reps / distance / weight / custom\n默认：duration', 'duration');
+  const safeMetricType = ['duration', 'reps', 'sets_reps', 'distance', 'weight', 'custom'].includes(metricType || '') ? (metricType || 'duration') : 'duration';
+
+  const parsed = buildMetricPayload(safeMetricType, true);
+  const value = parsed.value;
+  if (!parsed.valid) {
+    alert('请输入正确的计量值');
+    return;
+  }
+
+  const weekData = weeklyPlans[key] || { week: key, days: {} };
+  weekData.days[dayIndex] = weekData.days[dayIndex] || [];
+  weekData.days[dayIndex].push({
+    id: createId(),
+    activity: activity.trim(),
+    metricType: safeMetricType,
+    metricValue: value,
+    notes: ''
+  });
+
+  weeklyPlans[key] = weekData;
+  saveWeekly();
+  renderWeek();
+}
+
+function applyWeekToLogs() {
+  const key = weekPicker.value;
+  const data = weeklyPlans[key];
+  if (!data || !data.days) return 0;
+
   const monday = weekInputToMonday(key);
   let count = 0;
-  for (let i=0;i<7;i++){
-    const items = p.days[i]||[];
-    for (const it of items){
-      const date = addDays(monday, i);
-      logs.push({ id: Date.now().toString()+Math.random(), date: formatDate(date), activity: it.activity, duration: it.duration, notes: it.notes });
-      count++;
+
+  for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+    const items = data.days[dayIndex] || [];
+    for (const item of items) {
+      const currentDate = addDays(monday, dayIndex);
+      logs.push({
+        id: createId(),
+        date: toISODate(currentDate),
+        activity: item.activity,
+        metricType: item.metricType || 'duration',
+        metricValue: item.metricValue || { value: item.duration || 30 },
+        notes: item.notes || ''
+      });
+      count += 1;
     }
   }
+
   return count;
 }
 
-// 日志渲染
-function renderLogs(){
+function renderLogs() {
   logsList.innerHTML = '';
-  if (!logs || logs.length===0){ logsEmpty.style.display='block'; return; }
-  logsEmpty.style.display='none';
-  const sorted = logs.slice().sort((a,b)=> b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
-  for (const l of sorted){
-    const el = document.createElement('div'); el.className='log-item';
-    el.innerHTML = `<div class="log-left"><div class="title">${escapeHtml(l.activity)}</div><div class="small">${l.date} · ${l.duration} 分钟 ${l.notes? '· '+escapeHtml(l.notes):''}</div></div><div><button class=btn-ghost data-id="${l.id}" data-act="del">删除</button></div>`;
-    logsList.appendChild(el);
+  if (!logs.length) {
+    logsEmpty.style.display = 'block';
+    return;
   }
-  logsList.querySelectorAll('button[data-act="del"]').forEach(b=> b.addEventListener('click', ()=>{
-    const id = b.getAttribute('data-id'); logs = logs.filter(x=>x.id !== id); saveLogs(); renderLogs();
-  }));
+  logsEmpty.style.display = 'none';
+
+  const sorted = [...logs].sort((a, b) => b.date.localeCompare(a.date));
+  sorted.forEach(log => {
+    const row = document.createElement('div');
+    row.className = 'log-item';
+    row.innerHTML = `
+      <div>
+        <strong>${escapeHtml(log.activity)}</strong>
+        <div class="log-meta">${log.date} · ${formatMetric(log.metricType, normalizeMetricValue(log.metricType, log.metricValue))}</div>
+      </div>
+      <button class="action-mini" data-id="${log.id}">删</button>
+    `;
+    row.querySelector('.action-mini').addEventListener('click', () => {
+      logs = logs.filter(x => x.id !== log.id);
+      saveLogs();
+      renderLogs();
+      renderStats();
+    });
+    logsList.appendChild(row);
+  });
 }
 
-// storage helpers
-function loadWeekly(){
-  try{ const raw = localStorage.getItem(WEEK_KEY); return raw ? JSON.parse(raw) : {}; }catch(e){ console.error(e); return {}; }
-}
-function saveWeekly(){ localStorage.setItem(WEEK_KEY, JSON.stringify(weeklyPlans)); }
-function loadLogs(){ try{ const raw = localStorage.getItem(LOG_KEY); return raw ? JSON.parse(raw) : []; }catch(e){ console.error(e); return []; } }
-function saveLogs(){ localStorage.setItem(LOG_KEY, JSON.stringify(logs)); }
+function renderStats() {
+  const stats = {
+    totalSessions: logs.length,
+    totalMinutes: logs.reduce((sum, item) => sum + parseMetricMinutes(item), 0),
+    lastDate: logs.length ? [...logs].sort((a, b) => b.date.localeCompare(a.date))[0].date : '—',
+    favorite: summarizeFavorite(logs)
+  };
 
-// utils
-function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
-function downloadJSON(obj, filename){ const blob = new Blob([JSON.stringify(obj,null,2)], {type:'application/json'}); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url); }
-
-// date helpers
-function dateToWeekInput(d){
-  // returns YYYY-Www
-  const tmp = new Date(d.getTime());
-  // get ISO week number
-  const dayNum = (d.getUTCDay() + 6) % 7; // Monday=0
-  tmp.setUTCDate(d.getUTCDate() - dayNum + 3);
-  const firstThursday = new Date(Date.UTC(tmp.getUTCFullYear(),0,4));
-  const weekNo = Math.floor(1 + ( (tmp - firstThursday) / 86400000 + 3)/7);
-  const year = tmp.getUTCFullYear();
-  const w = String(weekNo).padStart(2,'0');
-  return `${year}-W${w}`;
+  statsSummary.innerHTML = `
+    <div class="stat-box"><span>本月记录</span><strong>${stats.totalSessions}</strong></div>
+    <div class="stat-box"><span>总时长</span><strong>${stats.totalMinutes} 分</strong></div>
+    <div class="stat-box"><span>最近一次</span><strong>${stats.lastDate}</strong></div>
+    <div class="stat-box"><span>最常做</span><strong>${stats.favorite}</strong></div>
+  `;
 }
 
-function weekInputToMonday(weekInput){
-  // weekInput like 2026-W41
-  const [y, w] = weekInput.split('-W');
-  const year = Number(y); const week = Number(w);
-  // ISO week: week 1 is week with Jan 4th
-  const jan4 = new Date(Date.UTC(year,0,4));
-  const dayOfJan4 = (jan4.getUTCDay()+6)%7; // Mon=0
-  const monday1 = new Date(Date.UTC(year,0,4 - dayOfJan4));
-  const monday = addDays(monday1, (week-1)*7);
-  // convert to local Date (no timezone shifting for formatting)
-  return new Date(monday.getFullYear(), monday.getMonth(), monday.getDate());
+function renderTemplates() {
+  templateList.innerHTML = '';
+  templates.forEach(temp => {
+    const item = document.createElement('div');
+    item.className = 'template-item';
+    item.innerHTML = `
+      <span>${escapeHtml(temp.name)}</span>
+      <small>${metricTypeLabels[temp.metricType] || temp.metricType}</small>
+    `;
+    templateList.appendChild(item);
+  });
 }
 
-function addDays(d, n){ const r = new Date(d); r.setDate(r.getDate()+n); return r; }
-function formatDate(d){ const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; }
+function showMetricFields(type) {
+  const fieldNodes = metricFieldsWrap.querySelectorAll('.metric-field, .sets_reps');
+  fieldNodes.forEach(node => node.classList.remove('active'));
 
-function downloadText(filename, text){ const blob = new Blob([text],{type:'text/plain'}); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url); }
+  if (type === 'duration') {
+    document.querySelector('.metric-field.duration').classList.add('active');
+  } else if (type === 'reps') {
+    document.querySelector('.metric-field.reps').classList.add('active');
+  } else if (type === 'sets_reps') {
+    document.querySelector('.sets_reps').classList.add('active');
+  } else if (type === 'distance') {
+    document.querySelector('.metric-field.distance').classList.add('active');
+  } else if (type === 'weight') {
+    document.querySelector('.metric-field.weight').classList.add('active');
+  } else if (type === 'custom') {
+    document.querySelector('.metric-field.custom').classList.add('active');
+  }
+}
+
+function buildMetricPayload(type, fromPrompt = false) {
+  const valueMap = {
+    duration: Number(document.getElementById('logDuration').value || (fromPrompt ? prompt('分钟', '30') : 0)),
+    reps: Number(document.getElementById('logReps').value || (fromPrompt ? prompt('次数', '12') : 0)),
+    sets_reps: {
+      sets: Number(document.getElementById('logSets').value || (fromPrompt ? prompt('组数', '3') : 0)),
+      reps: Number(document.getElementById('logRepsPerSet').value || (fromPrompt ? prompt('每组次数', '10') : 0))
+    },
+    distance: Number(document.getElementById('logDistance').value || (fromPrompt ? prompt('公里', '5') : 0)),
+    weight: Number(document.getElementById('logWeight').value || (fromPrompt ? prompt('公斤', '20') : 0)),
+    custom: document.getElementById('logCustomMetric').value || (fromPrompt ? prompt('自定义内容', '') : '')
+  };
+
+  const val = valueMap[type];
+  if (type === 'sets_reps') {
+    const valid = Number.isFinite(val.sets) && Number.isFinite(val.reps) && val.sets > 0 && val.reps > 0;
+    return { valid, value: valid ? val : null };
+  }
+  if (type === 'custom') {
+    const valid = typeof val === 'string' && val.trim().length > 0;
+    return { valid, value: valid ? val.trim() : null };
+  }
+
+  const valid = Number.isFinite(val) && Number(val) > 0;
+  return { valid, value: valid ? Number(val) : null };
+}
+
+function normalizeLegacyLog(item) {
+  if (item.metricType) {
+    return {
+      id: item.id || createId(),
+      date: item.date || toISODate(new Date()),
+      activity: item.activity || '训练',
+      metricType: item.metricType,
+      metricValue: normalizeMetricValue(item.metricType, item.metricValue),
+      notes: item.notes || ''
+    };
+  }
+
+  return {
+    id: item.id || createId(),
+    date: item.date || toISODate(new Date()),
+    activity: item.activity || '训练',
+    metricType: 'duration',
+    metricValue: { value: Number(item.duration || item.minutes || 30) },
+    notes: item.notes || ''
+  };
+}
+
+function loadStored(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveLogs() {
+  localStorage.setItem(STORAGE_KEYS.logs, JSON.stringify(logs));
+}
+
+function saveWeekly() {
+  localStorage.setItem(STORAGE_KEYS.weekly, JSON.stringify(weeklyPlans));
+}
+
+function saveTemplates() {
+  localStorage.setItem(STORAGE_KEYS.templates, JSON.stringify(templates));
+}
+
+function createId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+function escapeHtml(str) {
+  return String(str || '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[ch]));
+}
+
+function downloadJSON(obj, filename) {
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(href);
+}
+
+function parseMetricMinutes(item) {
+  const type = item.metricType || 'duration';
+  const value = normalizeMetricValue(type, item.metricValue);
+
+  if (type === 'duration') return Number(value.value || 0);
+  if (type === 'reps') return Math.max(0, Number(value.value || 0) / 20);
+  if (type === 'sets_reps') return Math.max(0, Number(value.sets || 0) * Number(value.reps || 0) / 20);
+  if (type === 'distance') return Math.max(0, Number(value.value || 0) * 10);
+  if (type === 'weight') return Math.max(0, Number(value.value || 0) / 5);
+  return 0;
+}
+
+function summarizeFavorite(logs) {
+  if (!logs.length) return '暂无';
+  const map = {};
+  logs.forEach(log => {
+    map[log.activity] = (map[log.activity] || 0) + 1;
+  });
+  const best = Object.entries(map).sort((a, b) => b[1] - a[1])[0];
+  return best ? best[0] : '暂无';
+}
+
+function formatMetric(type, value) {
+  if (type === 'duration') return `${value.value || 0} 分钟`;
+  if (type === 'reps') return `${value.value || 0} 次`;
+  if (type === 'sets_reps') return `${value.sets || 0} × ${value.reps || 0} 次`;
+  if (type === 'distance') return `${value.value || 0} 公里`;
+  if (type === 'weight') return `${value.value || 0} 公斤`;
+  if (type === 'custom') return value.value || '自定义';
+  return `${value.value || 0}`;
+}
+
+function normalizeMetricValue(type, value) {
+  if (!value) {
+    return { value: 0 };
+  }
+  if (type === 'sets_reps') {
+    if (typeof value === 'string') {
+      const [sets, reps] = value.split('x').map(n => Number(n.trim()));
+      return { sets: Number(sets || 0), reps: Number(reps || 0) };
+    }
+    return { sets: Number(value.sets || 0), reps: Number(value.reps || 0) };
+  }
+  if (type === 'custom') {
+    return { value: String(value) };
+  }
+  return { value: Number(value.value ?? value ?? 0) };
+}
+
+function toISODate(date) {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function dateToWeekInput(date) {
+  const tmp = new Date(date);
+  const day = (tmp.getDay() + 6) % 7;
+  tmp.setDate(tmp.getDate() - day + 3);
+  const jan4 = new Date(tmp.getFullYear(), 0, 4);
+  const week = 1 + Math.round((tmp - jan4) / 86400000 / 7);
+  return `${tmp.getFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+function weekInputToMonday(weekInput) {
+  const [year, weekStr] = weekInput.split('-W');
+  const targetWeek = Number(weekStr);
+  const jan4 = new Date(Number(year), 0, 4);
+  const jan4Day = (jan4.getDay() + 6) % 7;
+  const mondayOfWeek1 = new Date(jan4); mondayOfWeek1.setDate(jan4.getDate() - jan4Day);
+  const monday = new Date(mondayOfWeek1);
+  monday.setDate(mondayOfWeek1.getDate() + (targetWeek - 1) * 7);
+  return monday;
+}
+
+function addDays(date, offset) {
+  const d = new Date(date); d.setDate(d.getDate() + offset); return d;
+}
+
+function getTemplatesForSuggestions() {
+  return templates;
+}
+
+// Simple template suggestion on activity input
+logActivity.addEventListener('focus', () => {
+  const suggestions = getTemplatesForSuggestions();
+});
+
+logActivity.addEventListener('input', () => {
+  const value = logActivity.value.trim().toLowerCase();
+  if (!value) return;
+  const found = templates.find(t => t.name.toLowerCase().includes(value));
+  if (found) {
+    logMetricType.value = found.metricType;
+    showMetricFields(found.metricType);
+  }
+});
+
+// backfill from old stored data for legacy users
+(function backfill() {
+  logs = logs.map(normalizeLegacyLog);
+  saveLogs();
+})();
 
