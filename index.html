@@ -3,51 +3,66 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>我的健身记录</title>
+  <title>我的健身计划</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header>
-    <h1>我的健身计划</h1>
-    <p>记录每次训练并跟踪进度</p>
+  <header class="site-header">
+    <div class="container">
+      <h1>🏃 我的健身计划</h1>
+      <p class="muted">可视化每周计划 · 一键应用到训练记录 · 本地保存（可导出）</p>
+    </div>
   </header>
 
-  <main>
-    <section class="card">
-      <h2>添加训练</h2>
-      <form id="planForm">
-        <label>
-          日期
-          <input type="date" id="date" required />
-        </label>
-        <label>
-          项目
-          <input type="text" id="activity" placeholder="例如：跑步/力量训练/瑜伽" required />
-        </label>
-        <label>
-          时长（分钟）
-          <input type="number" id="duration" min="1" placeholder="30" required />
-        </label>
-        <label>
-          备注
-          <input type="text" id="notes" placeholder="可选" />
-        </label>
-        <div class="actions">
-          <button type="submit">添加</button>
-          <button type="button" id="clearAll">清空全部</button>
-        </div>
-      </form>
-    </section>
+  <main class="container layout">
+    <aside class="panel">
+      <h2>每周训练计划</h2>
+      <label class="row">
+        <span>选择周</span>
+        <input type="week" id="weekPicker" />
+      </label>
+      <div id="weekControls" class="row">
+        <button id="saveWeek">保存本周计划</button>
+        <button id="applyWeek">应用到训练记录</button>
+        <button id="clearWeek" class="danger">清空本周</button>
+      </div>
 
-    <section class="card">
+      <div id="weekDays" class="week-days"></div>
+
+      <div class="row small">
+        <button id="exportWeek">导出计划（JSON）</button>
+        <input type="file" id="importWeekFile" style="display:none" />
+        <button id="importWeek">导入计划</button>
+      </div>
+    </aside>
+
+    <section class="panel">
       <h2>训练记录</h2>
-      <div id="plansList" class="list"></div>
-      <div id="empty" class="empty">还没有计划，快添加第一条！</div>
+
+      <form id="logForm" class="inline-form">
+        <input type="date" id="logDate" required />
+        <input type="text" id="logActivity" placeholder="项目，例如：跑步/力量/瑜伽" required />
+        <input type="number" id="logDuration" min="1" placeholder="分钟" required />
+        <input type="text" id="logNotes" placeholder="备注（可选）" />
+        <button type="submit">添加记录</button>
+      </form>
+
+      <div class="row small">
+        <button id="exportLogs">导出记录（JSON）</button>
+        <input type="file" id="importLogsFile" style="display:none" />
+        <button id="importLogs">导入记录</button>
+        <button id="clearLogs" class="danger">清空所有记录</button>
+      </div>
+
+      <div id="logsList" class="logs-list"></div>
+      <div id="logsEmpty" class="empty">还没有训练记录，试试把计划“应用到训练记录”</div>
     </section>
   </main>
 
-  <footer>
-    <small>本地保存 · 可导出/导入（可扩展）</small>
+  <footer class="site-footer">
+    <div class="container">
+      <small>本地保存 · 无账户 · 可导出 JSON 备份</small>
+    </div>
   </footer>
 
   <script src="script.js"></script>
